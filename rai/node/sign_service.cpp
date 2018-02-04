@@ -7,10 +7,11 @@ extern "C" char * key_create()
 {
 	rai::keypair pair;
 	std::string private_key = pair.prv.data.to_string ();
-	std::string public_key = pair.pub.to_string ();
-	std::string res = private_key+":"+public_key;
+	std::string account = pair.pub.to_account ();
+	std::string res = private_key+":"+account;
 	return strcpy(new char[res.size()], res.c_str());
 }
+
 std::string block_create (
 	std::string type,
 	std::string account_text,
@@ -33,6 +34,7 @@ std::string getString(char * str)
 	std::string res(str);
 	return res;
 }
+
 extern "C" char * block_create_c (
 	char * type_text, 
 	char * account_text,
