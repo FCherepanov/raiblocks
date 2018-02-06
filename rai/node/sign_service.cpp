@@ -111,9 +111,9 @@ std::string block_create (
 				}
 
 				rai::open_block open (source, account, pub, prv, pub, work);
-				std::string signature_l;
-				open.signature.encode_hex (signature_l);
-				return signature_l;
+				std::string block;
+				open.serialize_json (block);
+				return block;
 			}
 			else
 			{
@@ -132,9 +132,9 @@ std::string block_create (
 					return "";
 				}
 				rai::receive_block receive (previous, source, prv, pub, work);
-				std::string signature_l;
-				receive.signature.encode_hex (signature_l);
-				return signature_l;
+				std::string block;
+				receive.serialize_json (block);
+				return block;
 			}
 			else
 			{
@@ -155,9 +155,9 @@ std::string block_create (
 					}
 
 					rai::send_block send (previous, destination, balance.number () - amount.number (), prv, pub, work);
-					std::string signature_l;
-					send.signature.encode_hex (signature_l);
-					return signature_l;
+					std::string block;
+					send.serialize_json (block);
+					return block;
 				}
 				else
 				{
