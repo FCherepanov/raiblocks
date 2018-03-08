@@ -8,7 +8,7 @@ wget -O ${BOOST_BASENAME}.tar.gz ${BOOST_URL}
 tar xf ${BOOST_BASENAME}.tar.gz
 cd ${BOOST_BASENAME}
 ./bootstrap.sh
-./b2 --prefix=${BOOST_ROOT} link=static install
+./b2 --prefix=${BOOST_ROOT} link=static cxxflags="-fPIC" install
 cd ..
 rm -rf ${BOOST_BASENAME}
 rm -f ${BOOST_BASENAME}.tar.gz
