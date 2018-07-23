@@ -1,21 +1,40 @@
 #pragma once
 
-#include <rai/node/utility.hpp>
-
-//#include <boost/beast/http.hpp>
-//#include <boost/beast/core/flat_buffer.hpp>
-#include <boost/beast.hpp>
-
+#include <atomic>
 #include <boost/asio.hpp>
+#include <boost/beast.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-
-#include <atomic>
+#include <rai/secure/utility.hpp>
 #include <unordered_map>
 
 namespace rai
 {
+void error_response (std::function<void(boost::property_tree::ptree const &)> response_a, std::string const & message_a);
 class node;
+/** Configuration options for RPC TLS */
+class rpc_secure_config
+{
+public:
+	rpc_secure_config ();
+	void serialize_json (boost::property_tree::ptree &) const;
+	bool deserialize_json (boost::property_tree::ptree const &);
+
+	/** If true, enable TLS */
+	bool enable;
+	/** If true, log certificate verification details */
+	bool verbose_logging;
+	/** Must be set if the private key PEM is password protected */
+	std::string server_key_passphrase;
+	/** Path to certificate- or chain file. Must be PEM formatted. */
+	std::string server_cert_path;
+	/** Path to private key file. Must be PEM formatted.*/
+	std::string server_key_path;
+	/** Path to dhparam file */
+	std::string server_dh_path;
+	/** Optional path to directory containing client certificates */
+	std::string client_certs_path;
+};
 class rpc_config
 {
 public:
@@ -28,6 +47,7 @@ public:
 	bool enable_control;
 	uint64_t frontier_request_limit;
 	uint64_t chain_request_limit;
+	rpc_secure_config secure;
 };
 enum class payment_status
 {
@@ -46,6 +66,7 @@ class rpc
 public:
 	rpc (boost::asio::io_service &, rai::node &, rai::rpc_config const &);
 	void start ();
+	virtual void accept ();
 	void stop ();
 	void observer_action (rai::account const &);
 	boost::asio::ip::tcp::acceptor acceptor;
@@ -60,13 +81,16 @@ class rpc_connection : public std::enable_shared_from_this<rai::rpc_connection>
 {
 public:
 	rpc_connection (rai::node &, rai::rpc &);
-	void parse_connection ();
+	virtual void parse_connection ();
+	virtual void read ();
+	virtual void write_result (std::string body, unsigned version);
 	std::shared_ptr<rai::node> node;
 	rai::rpc & rpc;
 	boost::asio::ip::tcp::socket socket;
 	boost::beast::flat_buffer buffer;
 	boost::beast::http::request<boost::beast::http::string_body> request;
 	boost::beast::http::response<boost::beast::http::string_body> res;
+	std::atomic_flag responded;
 };
 class payment_observer : public std::enable_shared_from_this<rai::payment_observer>
 {
@@ -88,10 +112,11 @@ public:
 class rpc_handler : public std::enable_shared_from_this<rai::rpc_handler>
 {
 public:
-	rpc_handler (rai::node &, rai::rpc &, std::string const &, std::function<void(boost::property_tree::ptree const &)> const &);
+	rpc_handler (rai::node &, rai::rpc &, std::string const &, std::string const &, std::function<void(boost::property_tree::ptree const &)> const &);
 	void process_request ();
 	void account_balance ();
 	void account_block_count ();
+	void account_count ();
 	void account_create ();
 	void account_get ();
 	void account_history ();
@@ -109,20 +134,22 @@ public:
 	void accounts_pending ();
 	void available_supply ();
 	void block ();
+	void block_confirm ();
 	void blocks ();
 	void blocks_info ();
 	void block_account ();
 	void block_count ();
 	void block_count_type ();
 	void block_create ();
+	void block_hash ();
 	void bootstrap ();
 	void bootstrap_any ();
 	void chain ();
+	void confirmation_history ();
 	void delegators ();
 	void delegators_count ();
 	void deterministic_key ();
 	void frontiers ();
-	void frontier_count ();
 	void history ();
 	void keepalive ();
 	void key_create ();
@@ -149,10 +176,12 @@ public:
 	void receive_minimum ();
 	void receive_minimum_set ();
 	void representatives ();
+	void representatives_online ();
 	void republish ();
 	void search_pending ();
 	void search_pending_all ();
 	void send ();
+	void stats ();
 	void stop ();
 	void successors ();
 	void unchecked ();
@@ -162,6 +191,7 @@ public:
 	void validate_account_number ();
 	void version ();
 	void wallet_add ();
+	void wallet_add_watch ();
 	void wallet_balance_total ();
 	void wallet_balances ();
 	void wallet_change_seed ();
@@ -171,6 +201,7 @@ public:
 	void wallet_export ();
 	void wallet_frontiers ();
 	void wallet_key_valid ();
+	void wallet_ledger ();
 	void wallet_lock ();
 	void wallet_pending ();
 	void wallet_representative ();
@@ -186,9 +217,12 @@ public:
 	void work_peers ();
 	void work_peers_clear ();
 	std::string body;
+	std::string request_id;
 	rai::node & node;
 	rai::rpc & rpc;
 	boost::property_tree::ptree request;
 	std::function<void(boost::property_tree::ptree const &)> response;
 };
+/** Returns the correct RPC implementation based on TLS configuration */
+std::unique_ptr<rai::rpc> get_rpc (boost::asio::io_service & service_a, rai::node & node_a, rai::rpc_config const & config_a);
 }

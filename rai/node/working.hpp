@@ -1,6 +1,6 @@
 #pragma once
 
-#include <rai/secure.hpp>
+#include <rai/secure/common.hpp>
 
 namespace rai
 {

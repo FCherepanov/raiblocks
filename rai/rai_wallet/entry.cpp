@@ -1,11 +1,10 @@
-#include <rai/qt/qt.hpp>
-
-#include <rai/icon.hpp>
+#include <rai/node/cli.hpp>
 #include <rai/node/rpc.hpp>
 #include <rai/node/working.hpp>
+#include <rai/qt/qt.hpp>
+#include <rai/rai_wallet/icon.hpp>
 
 #include <boost/make_shared.hpp>
-
 #include <boost/program_options.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -163,7 +162,7 @@ namespace
 {
 void show_error (std::string const & message_a)
 {
-	QMessageBox message (QMessageBox::Critical, "Error starting RaiBlocks", message_a.c_str ());
+	QMessageBox message (QMessageBox::Critical, "Error starting Nano", message_a.c_str ());
 	message.setModal (true);
 	message.show ();
 	message.exec ();
@@ -196,7 +195,7 @@ int run_wallet (QApplication & application, int argc, char * const * argv, boost
 	QSplashScreen * splash = new QSplashScreen (pixmap);
 	splash->show ();
 	application.processEvents ();
-	splash->showMessage (QSplashScreen::tr ("Remember—Back Up Your Wallet Seed"), Qt::AlignBottom | Qt::AlignHCenter, Qt::black);
+	splash->showMessage (QSplashScreen::tr ("Remember - Back Up Your Wallet Seed"), Qt::AlignBottom | Qt::AlignHCenter, Qt::darkGray);
 	application.processEvents ();
 	qt_wallet_config config (data_path);
 	auto config_path ((data_path / "config.json"));
@@ -252,14 +251,14 @@ int run_wallet (QApplication & application, int argc, char * const * argv, boost
 			assert (wallet->exists (config.account));
 			update_config (config, config_path, config_file);
 			node->start ();
-			rai::rpc rpc (service, *node, config.rpc);
-			if (config.rpc_enable)
+			std::unique_ptr<rai::rpc> rpc = get_rpc (service, *node, config.rpc);
+			if (rpc && config.rpc_enable)
 			{
-				rpc.start ();
+				rpc->start ();
 			}
 			rai::thread_runner runner (service, node->config.io_threads);
 			QObject::connect (&application, &QApplication::aboutToQuit, [&]() {
-				rpc.stop ();
+				rpc->stop ();
 				node->stop ();
 			});
 			application.postEvent (&processor, new rai_qt::eventloop_event ([&]() {
@@ -296,36 +295,37 @@ int main (int argc, char * const * argv)
 		boost::program_options::store (boost::program_options::command_line_parser (argc, argv).options (description).allow_unregistered ().run (), vm);
 		boost::program_options::notify (vm);
 		int result (0);
-		if (!rai::handle_node_options (vm))
+		auto ec = rai::handle_node_options (vm);
+		if (ec == rai::error_cli::unknown_command)
 		{
-		}
-		else if (vm.count ("help") != 0)
-		{
-			std::cout << description << std::endl;
-		}
-		else
-		{
-			try
+			if (vm.count ("help") != 0)
 			{
-				boost::filesystem::path data_path;
-				if (vm.count ("data_path"))
-				{
-					auto name (vm["data_path"].as<std::string> ());
-					data_path = boost::filesystem::path (name);
-				}
-				else
-				{
-					data_path = rai::working_path ();
-				}
-				result = run_wallet (application, argc, argv, data_path);
+				std::cout << description << std::endl;
 			}
-			catch (std::exception const & e)
+			else
 			{
-				show_error (boost::str (boost::format ("Exception while running wallet: %1%") % e.what ()));
-			}
-			catch (...)
-			{
-				show_error ("Unknown exception while running wallet");
+				try
+				{
+					boost::filesystem::path data_path;
+					if (vm.count ("data_path"))
+					{
+						auto name (vm["data_path"].as<std::string> ());
+						data_path = boost::filesystem::path (name);
+					}
+					else
+					{
+						data_path = rai::working_path ();
+					}
+					result = run_wallet (application, argc, argv, data_path);
+				}
+				catch (std::exception const & e)
+				{
+					show_error (boost::str (boost::format ("Exception while running wallet: %1%") % e.what ()));
+				}
+				catch (...)
+				{
+					show_error ("Unknown exception while running wallet");
+				}
 			}
 		}
 		return result;
